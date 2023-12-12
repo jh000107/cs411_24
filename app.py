@@ -7,6 +7,7 @@ from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from pip._vendor import cachecontrol
 import google.auth.transport.requests
+
 from flask import Flask, render_template_string
 
 from flask import Flask, request, render_template_string, redirect, url_for
@@ -16,13 +17,10 @@ from flask_sqlalchemy import SQLAlchemy
 import gradio as gr
 import threading
 
-from multiprocessing import Process
+def hello_world(input):
+  return ("hey " + input + " take care.")
 
-from gradio_interface import run_gradio_interface
-
-
-
-# gradio_interface = gr.Interface(fn=run_gradio_interface, inputs="text", outputs="text")
+gradio_interface = gr.Interface(fn=hello_world, inputs="text", outputs="text")
 
 app = Flask("Google Login App")
 app.secret_key = "CodeSpecialist.com"
@@ -107,32 +105,42 @@ def index():
 def protected_area():
     return f"Hello {session['name']}! <br/> <a href='/gradioThread'><button>Gradio</button></a> <br/> <a href='/logout'><button>Logout</button></a> <br/> <a href='/register'><button>Register</button></a>"
 
-# @app.route('/gradio', methods=['GET'])
-# def gradio_app():
-#     run_gradio_interface().launch(server_name="0.0.0.0", server_port=7860, inbrowser=False, share=False)
-
-def run_gradio():
-    gradio_app = run_gradio_interface()
-    gradio_app.launch(server_name='0.0.0.0', server_port=7860, inbrowser=False)
-
-
+@app.route('/gradio', methods=['GET'])
+def gradio_app():
+    gradio_interface.launch(server_name="0.0.0.0", server_port=7860, inbrowser=False)
 
 @app.route('/gradioThread')
 def home():
     return render_template_string('''
         <h1>Flask and Gradio Integration</h1>
-        <iframe src="http://localhost:7860" width="100%" height="100%"></iframe>
+        <iframe src="http://localhost:7860" width="100%" height="500"></iframe>
         <br/> <a href='/logout'><button>Logout</button></a>
     ''')
 
-# threading.Thread(target=gradio_app, daemon=True).start()
+threading.Thread(target=gradio_app, daemon=True).start()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
-        # Handle other form fields
+
+        if not email.endswith('@gmail.com'):
+            return render_template_string('''
+                <p>Only Gmail addresses are accepted. Please provide a valid Gmail address.</p>
+                <a href="/register">Try again</a>
+            ''')
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            # User with this email already exists
+            return render_template_string('''
+                <p>This email is already registered. Please use a different email.</p>
+                <a href="/register">Try again</a>
+                <p> Use Gradio </p>
+                <br/> <a href='/gradioThread'><button>Gradio</button></a>
+
+            ''')
 
         # Save to database
         new_user = User(username=username, email=email)
@@ -151,6 +159,7 @@ def register():
         <br/> <a href='/gradioThread'><button>Gradio</button></a>
     ''')
 
+
 @app.route('/profile/<int:user_id>')
 def profile(user_id):
     user = User.query.get_or_404(user_id)
@@ -163,6 +172,4 @@ def profile(user_id):
     ''', user=user)
 
 if __name__ == "__main__":
-    gradio_process = Process(target=run_gradio)
-    gradio_process.start()
     app.run()
